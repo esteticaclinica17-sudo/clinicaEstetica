@@ -12,6 +12,7 @@ import HistoryIcon from "@mui/icons-material/History";
 import PaymentIcon from "@mui/icons-material/Payment";
 import LocationOnIcon from "@mui/icons-material/LocationOn";
 import CreditCardIcon from "@mui/icons-material/CreditCard";
+import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
 import { APP_ROUTES } from "../../util/constants";
 import { useAppSelector } from "../../core/store/hooks";
 
@@ -29,6 +30,7 @@ export default function AppLayout() {
       clinic: [
         { icon: <DashboardIcon />, label: "Dashboard", to: APP_ROUTES.CLINIC.DASHBOARD },
         { icon: <PaymentIcon />, label: "Pagamentos", to: APP_ROUTES.CLINIC.APPOINTMENTS },
+        { icon: <AccountBalanceIcon />, label: "Dados de pagamento", to: APP_ROUTES.CLINIC.PAYMENT_SETTINGS },
         { icon: <PeopleIcon />, label: "Pacientes", to: APP_ROUTES.CLINIC.PATIENTS },
         { icon: <MedicalIcon />, label: "Procedimentos", to: APP_ROUTES.CLINIC.PROCEDURES },
       ],

@@ -36,6 +36,10 @@ import QRCode from "react-qr-code";
 import { useNavigate } from "react-router";
 import { useAppSelector } from "../../core/store/hooks";
 import { APP_ROUTES } from "../../util/constants";
+import {
+  isClinicPaymentLinkExpired,
+  loadClinicPaymentSettings,
+} from "../../util/clinicPaymentSettings";
 
 // ========== MOCK STORAGE ==========
 const PATIENT_HIRED_PROCEDURES_PREFIX = "patient_hired_procedures_";
@@ -549,7 +553,10 @@ export default function PaymentDashboard() {
   const openPaymentModal = (proc: HiredProcedure) => {
     setSelectedProcedure(proc);
     setModalPagamentoAberto(true);
-    setFormaPagamento("pix");
+    const clinicPay = loadClinicPaymentSettings(proc.clinicaId);
+    setFormaPagamento(
+      isClinicPaymentLinkExpired(clinicPay) ? "cartao" : "pix"
+    );
     setModoPagamento("flexivel");
     setSelectedCardId("");
     setInstallments(1);
@@ -558,6 +565,13 @@ export default function PaymentDashboard() {
     const remaining = Math.max(0, totalValue - alreadyPaid);
     setAmountToPayInput(formatMoneyPtBr(remaining));
   };
+
+  const clinicPaymentLinkExpired = useMemo(() => {
+    if (!selectedProcedure) return false;
+    return isClinicPaymentLinkExpired(
+      loadClinicPaymentSettings(selectedProcedure.clinicaId)
+    );
+  }, [selectedProcedure]);
 
   // Opções de parcelas respeitando o que já foi pago
   const maxInstallments = selectedProcedure
@@ -644,11 +658,26 @@ export default function PaymentDashboard() {
       return;
     }
 
-    if (formaPagamento === "pix" && !skipPixQr) {
-      const examplePixUrl = `https://example.com/pix-payment?procedureId=${selectedProcedure.procedimentoId}&patientId=${userId}&amount=${pixAmountPreview.toFixed(2)}`;
-      setPixQrValue(examplePixUrl);
-      setPixQrModalAberto(true);
-      return;
+    if (formaPagamento === "pix") {
+      const clinicPaySettings = loadClinicPaymentSettings(selectedProcedure.clinicaId);
+      if (isClinicPaymentLinkExpired(clinicPaySettings)) {
+        setSnackbar({
+          open: true,
+          message:
+            "O link de pagamento desta clínica expirou. Entre em contato com a clínica ou utilize cartão de crédito, se disponível.",
+          severity: "error",
+        });
+        return;
+      }
+      if (!skipPixQr) {
+        const bankLink = clinicPaySettings?.receiptLink?.trim();
+        const examplePixUrl =
+          bankLink ||
+          `https://example.com/pix-payment?procedureId=${selectedProcedure.procedimentoId}&patientId=${userId}&amount=${pixAmountPreview.toFixed(2)}`;
+        setPixQrValue(examplePixUrl);
+        setPixQrModalAberto(true);
+        return;
+      }
     }
 
     if (amountToPayNow <= 0) {
@@ -1155,13 +1184,26 @@ export default function PaymentDashboard() {
             </Box>
           )}
 
+          {clinicPaymentLinkExpired && (
+            <Alert severity="warning" sx={{ mb: 2 }}>
+              O link de pagamento desta clínica <strong>expirou</strong>. Não é possível pagar via PIX até que a
+              clínica atualize os dados de pagamento. Utilize cartão de crédito, se disponível, ou entre em
+              contato com a clínica.
+            </Alert>
+          )}
+
           <FormControl component="fieldset" sx={{ mt: 1, width: "100%" }}>
             <FormLabel component="legend">Forma de pagamento</FormLabel>
             <RadioGroup
               value={formaPagamento}
               onChange={(_, v) => setFormaPagamento(v as FormaPagamento)}
             >
-              <FormControlLabel value="pix" control={<Radio />} label="PIX" />
+              <FormControlLabel
+                value="pix"
+                control={<Radio />}
+                label="PIX"
+                disabled={clinicPaymentLinkExpired}
+              />
               <FormControlLabel value="cartao" control={<Radio />} label="Cartão de crédito" />
             </RadioGroup>
           </FormControl>
@@ -1300,6 +1342,7 @@ export default function PaymentDashboard() {
             disabled={
               !selectedProcedure ||
               amountToPayNow <= 0 ||
+              (formaPagamento === "pix" && clinicPaymentLinkExpired) ||
               (formaPagamento === "cartao" && cartoes.length > 0 && !selectedCardId) ||
               (formaPagamento === "cartao" &&
                 modoPagamento === "parcelado" &&

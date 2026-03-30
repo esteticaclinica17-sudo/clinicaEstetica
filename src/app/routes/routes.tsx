@@ -19,6 +19,7 @@ import ClinicDashboard from "../../pages/clinicPages/Dashboard";
 import Appointments from "../../pages/clinicPages/Appointments";
 import Patients from "../../pages/clinicPages/Patients";
 import Procedures from "../../pages/clinicPages/Procedures";
+import ClinicPaymentSettings from "../../pages/clinicPages/ClinicPaymentSettings";
 
 // Patient Pages
 import PatientLanding from "../../pages/patientPages/PatientLanding";
@@ -108,6 +109,7 @@ export const AppRoutes = () => (
       <Route path={APP_ROUTES.CLINIC.APPOINTMENTS} element={<Appointments />} />
       <Route path={APP_ROUTES.CLINIC.PATIENTS} element={<Patients />} />
       <Route path={APP_ROUTES.CLINIC.PROCEDURES} element={<Procedures />} />
+      <Route path={APP_ROUTES.CLINIC.PAYMENT_SETTINGS} element={<ClinicPaymentSettings />} />
 
       {/* Patient Routes */}
       <Route path={APP_ROUTES.PATIENT.DASHBOARD} element={<PatientDashboard />} />

@@ -38,6 +38,7 @@ export const APP_ROUTES = {
     APPOINTMENTS: "/clinic/appointments",
     PATIENTS: "/clinic/patients",
     PROCEDURES: "/clinic/procedures",
+    PAYMENT_SETTINGS: "/clinic/payment-settings",
     PROFESSIONALS: "/clinic/professionals",
     FINANCIAL: "/clinic/financial",
   },
