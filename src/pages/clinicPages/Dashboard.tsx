@@ -6,6 +6,7 @@ import { useAppSelector } from '../../core/store/hooks';
 
 const PATIENT_APPOINTMENTS_STORAGE_PREFIX = 'patient_agendamentos_';
 const CLINIC_PATIENTS_STORAGE_PREFIX = 'clinic_patients_';
+const CLINIC_PAID_LEADS_PREFIX = 'clinic_paid_leads_';
 const MOCK_PROCEDURES_KEY = 'mock_procedures';
 const PATIENT_PAYMENTS_STORAGE_PREFIX = 'patient_pagamentos_';
 
@@ -24,6 +25,29 @@ interface PacienteAssociado {
   nome: string;
   email: string;
   dataAssociacao: string;
+}
+
+interface ClinicPaidLead {
+  id: number;
+  patientId: number;
+  patientName: string;
+  procedureId: number;
+  procedureName: string;
+  clinicaId: number;
+  valorTotal: string;
+  createdAt: string;
+}
+
+function loadClinicPaidLeads(clinicId: number): ClinicPaidLead[] {
+  try {
+    const key = CLINIC_PAID_LEADS_PREFIX + clinicId;
+    const stored = localStorage.getItem(key);
+    if (!stored) return [];
+    const parsed = JSON.parse(stored) as ClinicPaidLead[];
+    return Array.isArray(parsed) ? parsed : [];
+  } catch {
+    return [];
+  }
 }
 
 function loadClinicPatients(clinicId: number): PacienteAssociado[] {
@@ -224,6 +248,7 @@ export default function ClinicDashboard() {
   const [receitaMes, setReceitaMes] = useState(0);
   const [faturamentoPorMes, setFaturamentoPorMes] = useState<Array<{ mes: string; valor: number }>>([]);
   const [faturamentoPorProcedimento, setFaturamentoPorProcedimento] = useState<Array<{ name: string; value: number }>>([]);
+  const [paidLeads, setPaidLeads] = useState<ClinicPaidLead[]>([]);
 
   const refresh = () => {
     setTotalAgendamentos(countAppointmentsForClinic(clinicId));
@@ -232,6 +257,10 @@ export default function ClinicDashboard() {
     setReceitaMes(getReceitaMesClinic(clinicId));
     setFaturamentoPorMes(getFaturamentoPorMesClinic(clinicId));
     setFaturamentoPorProcedimento(getFaturamentoPorProcedimento(clinicId));
+    const leads = loadClinicPaidLeads(clinicId);
+    setPaidLeads(
+      [...leads].sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+    );
   };
 
   useEffect(() => {
@@ -250,64 +279,110 @@ export default function ClinicDashboard() {
         Dashboard - Clínica
       </Typography>
       
-      {/* Cards de Estatísticas */}
-      <Stack direction={{ xs: 'column', md: 'row' }} spacing={3} mb={4}>
-        <Box flex={1}>
-          <Paper sx={{ p: 3 }}>
-            <Typography variant="h6" color="text.secondary" gutterBottom>
-              Agendamentos
-            </Typography>
-            <Typography variant="h3" fontWeight={700}>
-              {totalAgendamentos}
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              Realizados com a clínica
-            </Typography>
-          </Paper>
-        </Box>
-        
-        <Box flex={1}>
-          <Paper sx={{ p: 3 }}>
-            <Typography variant="h6" color="text.secondary" gutterBottom>
-              Total de Pacientes
-            </Typography>
-            <Typography variant="h3" fontWeight={700}>
-              {totalPacientes}
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              Que realizaram pagamento
-            </Typography>
-          </Paper>
-        </Box>
-        
-        <Box flex={1}>
-          <Paper sx={{ p: 3 }}>
-            <Typography variant="h6" color="text.secondary" gutterBottom>
-              Procedimentos
-            </Typography>
-            <Typography variant="h3" fontWeight={700}>
-              {totalProcedimentos}
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              Cadastrados pela clínica
-            </Typography>
-          </Paper>
-        </Box>
-        
-        <Box flex={1}>
-          <Paper sx={{ p: 3 }}>
-            <Typography variant="h6" color="text.secondary" gutterBottom>
-              Receita do Mês
-            </Typography>
-            <Typography variant="h3" fontWeight={700}>
-              R$ {receitaMes.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-            </Typography>
-            <Typography variant="caption" color="text.secondary">
-              Pagamentos realizados à clínica
-            </Typography>
-          </Paper>
-        </Box>
+      {/* Cards de Estatísticas: 3 acima; receita do mês em linha própria (valores longos) */}
+      <Stack spacing={3} mb={4}>
+        <Stack direction={{ xs: 'column', md: 'row' }} spacing={3}>
+          <Box flex={1}>
+            <Paper sx={{ p: 3 }}>
+              <Typography variant="h6" color="text.secondary" gutterBottom>
+                Agendamentos
+              </Typography>
+              <Typography variant="h3" fontWeight={700}>
+                {totalAgendamentos}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                Realizados com a clínica
+              </Typography>
+            </Paper>
+          </Box>
+
+          <Box flex={1}>
+            <Paper sx={{ p: 3 }}>
+              <Typography variant="h6" color="text.secondary" gutterBottom>
+                Total de Pacientes
+              </Typography>
+              <Typography variant="h3" fontWeight={700}>
+                {totalPacientes}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                Que realizaram pagamento
+              </Typography>
+            </Paper>
+          </Box>
+
+          <Box flex={1}>
+            <Paper sx={{ p: 3 }}>
+              <Typography variant="h6" color="text.secondary" gutterBottom>
+                Procedimentos
+              </Typography>
+              <Typography variant="h3" fontWeight={700}>
+                {totalProcedimentos}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                Cadastrados pela clínica
+              </Typography>
+            </Paper>
+          </Box>
+        </Stack>
+
+        <Paper sx={{ p: 3 }}>
+          <Typography variant="h6" color="text.secondary" gutterBottom>
+            Receita do Mês
+          </Typography>
+          <Typography
+            component="p"
+            fontWeight={700}
+            sx={{
+              m: 0,
+              fontSize: 'clamp(1.5rem, 3.2vw + 0.8rem, 3rem)',
+              lineHeight: 1.25,
+              letterSpacing: '-0.02em',
+              wordBreak: 'break-word',
+            }}
+          >
+            R$ {receitaMes.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+          </Typography>
+          <Typography variant="caption" color="text.secondary">
+            Pagamentos realizados à clínica
+          </Typography>
+        </Paper>
       </Stack>
+
+      <Paper sx={{ p: 3, mb: 4 }}>
+        <Typography variant="h6" fontWeight={600} gutterBottom>
+          Pacientes com pagamento concluído (lead)
+        </Typography>
+        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+          Pacientes que quitaram o procedimento no app e foram encaminhados para contato pela clínica.
+        </Typography>
+        {paidLeads.length === 0 ? (
+          <Typography color="text.secondary">Nenhum lead por pagamento concluído ainda.</Typography>
+        ) : (
+          <Stack spacing={1}>
+            {paidLeads.slice(0, 15).map((lead) => (
+              <Box
+                key={lead.id}
+                sx={{
+                  p: 2,
+                  borderRadius: 1,
+                  border: '1px solid',
+                  borderColor: 'divider',
+                }}
+              >
+                <Typography variant="subtitle2" fontWeight={600}>
+                  {lead.procedureName}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {lead.patientName} · Valor: R$ {lead.valorTotal}
+                </Typography>
+                <Typography variant="caption" color="text.secondary">
+                  {lead.createdAt ? new Date(lead.createdAt).toLocaleString('pt-BR') : ''}
+                </Typography>
+              </Box>
+            ))}
+          </Stack>
+        )}
+      </Paper>
 
       {/* Box única: gráfico de barras (65%) + gráfico de pizza por procedimento (35%) */}
       <Paper sx={{ p: 3 }}>

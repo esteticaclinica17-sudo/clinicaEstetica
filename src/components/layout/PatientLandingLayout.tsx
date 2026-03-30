@@ -1,4 +1,4 @@
-import React, { useState, useMemo, type ReactNode } from 'react';
+import React, { type ReactNode } from 'react';
 import {
   Box,
   Container,
@@ -13,14 +13,13 @@ import {
   AppBar,
   Toolbar,
 } from '@mui/material';
-import { ThemeProvider, CssBaseline } from '@mui/material';
 import Brightness4Icon from '@mui/icons-material/Brightness4';
 import Brightness7Icon from '@mui/icons-material/Brightness7';
 import LogoutIcon from '@mui/icons-material/Logout';
 import PersonIcon from '@mui/icons-material/Person';
 import DashboardIcon from '@mui/icons-material/Dashboard';
-import getTheme from '../../assets/styles/theme';
 import { useAuth } from '../../hooks/useAuth';
+import { useThemeMode } from '../../app/providers/ThemeModeProvider';
 import { useNavigate } from 'react-router';
 import { APP_ROUTES } from '../../util/constants';
 
@@ -99,9 +98,9 @@ function PatientHeader({
             <Button
               variant="text"
               color="inherit"
-              onClick={() => navigate(APP_ROUTES.PATIENT.APPOINTMENTS)}
+              onClick={() => navigate(APP_ROUTES.PATIENT.PAYMENTS)}
             >
-              Agendamentos
+              Pagamentos
             </Button>
 
             <Tooltip title={themeMode === 'dark' ? 'Tema claro' : 'Tema escuro'}>
@@ -203,33 +202,25 @@ function PatientFooter() {
 }
 
 const PatientLandingLayout: React.FC<PatientLandingLayoutProps> = ({ children }) => {
-  const [themeMode, setThemeMode] = useState<'light' | 'dark'>('light');
-  const theme = useMemo(() => getTheme(themeMode), [themeMode]);
-
-  const handleToggleTheme = () => {
-    setThemeMode((prev) => (prev === 'light' ? 'dark' : 'light'));
-  };
+  const { mode: themeMode, toggleMode: handleToggleTheme } = useThemeMode();
 
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <Box
-        sx={{
-          minHeight: '100vh',
-          display: 'flex',
-          flexDirection: 'column',
-          bgcolor: 'background.default',
-        }}
-      >
-        <PatientHeader onToggleTheme={handleToggleTheme} themeMode={themeMode} />
+    <Box
+      sx={{
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        bgcolor: 'background.default',
+      }}
+    >
+      <PatientHeader onToggleTheme={handleToggleTheme} themeMode={themeMode} />
 
-        <Box component="main" sx={{ flex: 1 }}>
-          {children}
-        </Box>
-
-        <PatientFooter />
+      <Box component="main" sx={{ flex: 1 }}>
+        {children}
       </Box>
-    </ThemeProvider>
+
+      <PatientFooter />
+    </Box>
   );
 };
 

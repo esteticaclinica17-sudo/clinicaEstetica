@@ -2,9 +2,7 @@ import { Box, Button, Container, Typography, IconButton, Tooltip } from "@mui/ma
 import Brightness4Icon from "@mui/icons-material/Brightness4";
 import Brightness7Icon from "@mui/icons-material/Brightness7";
 import { useNavigate } from "react-router";
-import { useMemo, useState } from "react";
-import { ThemeProvider, CssBaseline } from "@mui/material";
-import getTheme from "../assets/styles/theme";
+import { useThemeMode } from "../app/providers/ThemeModeProvider";
 
 function LandingHeader() {
   const navigate = useNavigate();
@@ -72,16 +70,10 @@ function LandingFooter() {
 
 export default function Home() {
   const navigate = useNavigate();
-  const [themeMode, setThemeMode] = useState<"light" | "dark">("light");
-  const theme = useMemo(() => getTheme(themeMode), [themeMode]);
-
-  const handleToggleTheme = () =>
-    setThemeMode((prev) => (prev === "light" ? "dark" : "light"));
+  const { mode: themeMode, toggleMode: handleToggleTheme } = useThemeMode();
 
   return (
-    <ThemeProvider theme={theme}>
-      <CssBaseline />
-      <Box
+    <Box
         sx={{
           minHeight: "100vh",
           display: "flex",
@@ -174,7 +166,6 @@ export default function Home() {
 
         <LandingFooter />
       </Box>
-    </ThemeProvider>
   );
 }
 

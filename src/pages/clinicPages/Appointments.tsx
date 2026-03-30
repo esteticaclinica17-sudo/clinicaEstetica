@@ -1,42 +1,25 @@
 import { useEffect, useState } from "react";
-import {
-  Box,
-  Typography,
-  Button,
-  Paper,
-  List,
-  ListItem,
-  ListItemText,
-  ListItemSecondaryAction,
-  IconButton,
-  FormControlLabel,
-  Checkbox,
-} from "@mui/material";
-import AddIcon from "@mui/icons-material/Add";
-import DeleteOutlineIcon from "@mui/icons-material/DeleteOutline";
-import ScheduleIcon from "@mui/icons-material/Schedule";
-import EventBusyIcon from "@mui/icons-material/EventBusy";
+import { Box, Typography, Paper, List, ListItem, ListItemText } from "@mui/material";
+import PaymentIcon from "@mui/icons-material/Payment";
 import { useAppSelector } from "../../core/store/hooks";
-import dayjs, { Dayjs } from "dayjs";
-import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
-import { DateCalendar } from "@mui/x-date-pickers/DateCalendar";
-import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
-import { PickersDay } from "@mui/x-date-pickers/PickersDay";
-import type { PickersDayProps } from "@mui/x-date-pickers/PickersDay";
+import dayjs from "dayjs";
 
-const PATIENT_APPOINTMENTS_STORAGE_PREFIX = "patient_agendamentos_";
+const CLINIC_PAYMENTS_STORAGE_PREFIX = "clinic_payments_";
 const CLINIC_PATIENTS_STORAGE_PREFIX = "clinic_patients_";
-export const CLINIC_UNAVAILABLE_DAYS_STORAGE_PREFIX = "clinic_unavailable_days_";
-const CLINIC_INCLUDE_WEEKENDS_STORAGE_PREFIX = "clinic_include_weekends_";
 
-interface AgendamentoPaciente {
+/** Mantidos para compatibilidade caso outro módulo importe (ex.: lógica legada de calendário). */
+export const CLINIC_UNAVAILABLE_DAYS_STORAGE_PREFIX = "clinic_unavailable_days_";
+
+interface ClinicPayment {
   id: number;
-  userId: number;
-  clinicaId: number;
-  clinicaNome: string;
-  procedimentoId?: number;
-  procedimentoNome?: string;
-  dataAgendada: string;
+  patientId: number;
+  patientName: string;
+  procedureId: number;
+  procedureName: string;
+  amount: string;
+  method: "pix" | "cartao";
+  installments?: number;
+  date: string;
 }
 
 interface PacienteAssociado {
@@ -46,9 +29,8 @@ interface PacienteAssociado {
   dataAssociacao: string;
 }
 
-/** Agendamento exibido na lista (com nome do paciente) */
-interface AgendamentoExibicao extends AgendamentoPaciente {
-  pacienteNome: string;
+interface PagamentoExibicao extends ClinicPayment {
+  patientEmail?: string;
 }
 
 function loadClinicPatients(clinicId: number): PacienteAssociado[] {
@@ -63,155 +45,48 @@ function loadClinicPatients(clinicId: number): PacienteAssociado[] {
   }
 }
 
-function loadPatientAppointments(userId: number): AgendamentoPaciente[] {
-  try {
-    const key = PATIENT_APPOINTMENTS_STORAGE_PREFIX + userId;
-    const stored = localStorage.getItem(key);
-    if (!stored) return [];
-    const parsed = JSON.parse(stored) as AgendamentoPaciente[];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function savePatientAppointments(userId: number, list: AgendamentoPaciente[]) {
-  try {
-    localStorage.setItem(PATIENT_APPOINTMENTS_STORAGE_PREFIX + userId, JSON.stringify(list));
-  } catch {
-    console.error("Error saving patient appointments");
-  }
-}
-
-export function loadClinicUnavailableDays(clinicId: number): string[] {
-  try {
-    const key = CLINIC_UNAVAILABLE_DAYS_STORAGE_PREFIX + clinicId;
-    const stored = localStorage.getItem(key);
-    if (!stored) return [];
-    const parsed = JSON.parse(stored) as string[];
-    return Array.isArray(parsed) ? parsed : [];
-  } catch {
-    return [];
-  }
-}
-
-function saveClinicUnavailableDays(clinicId: number, days: string[]) {
-  try {
-    const key = CLINIC_UNAVAILABLE_DAYS_STORAGE_PREFIX + clinicId;
-    localStorage.setItem(key, JSON.stringify(days));
-  } catch {
-    console.error("Error saving clinic unavailable days");
-  }
-}
-
-export function loadClinicIncludeWeekends(clinicId: number): boolean {
-  try {
-    const key = CLINIC_INCLUDE_WEEKENDS_STORAGE_PREFIX + clinicId;
-    const stored = localStorage.getItem(key);
-    return stored === "true";
-  } catch {
-    return false;
-  }
-}
-
-function saveClinicIncludeWeekends(clinicId: number, value: boolean) {
-  try {
-    const key = CLINIC_INCLUDE_WEEKENDS_STORAGE_PREFIX + clinicId;
-    localStorage.setItem(key, value ? "true" : "false");
-  } catch {
-    console.error("Error saving clinic include weekends");
-  }
-}
-
-/** Retorna todos os agendamentos cujo clinicaId é o da clínica logada */
-function loadAppointmentsForClinic(clinicId: number): AgendamentoExibicao[] {
+function loadClinicPayments(clinicId: number): PagamentoExibicao[] {
   if (!clinicId) return [];
-  const clinicPatients = loadClinicPatients(clinicId);
-  const byUserId = new Map(clinicPatients.map((p) => [p.userId, p.nome?.trim() || p.email || `Paciente ${p.userId}`]));
-  const result: AgendamentoExibicao[] = [];
-
-  for (let i = 0; i < localStorage.length; i++) {
-    const key = localStorage.key(i);
-    if (!key || !key.startsWith(PATIENT_APPOINTMENTS_STORAGE_PREFIX)) continue;
+  try {
+    const key = CLINIC_PAYMENTS_STORAGE_PREFIX + clinicId;
     const stored = localStorage.getItem(key);
-    if (!stored) continue;
-    let list: AgendamentoPaciente[];
-    try {
-      list = JSON.parse(stored) as AgendamentoPaciente[];
-      if (!Array.isArray(list)) continue;
-    } catch {
-      continue;
-    }
-    const userId = parseInt(key.replace(PATIENT_APPOINTMENTS_STORAGE_PREFIX, ""), 10);
-    if (Number.isNaN(userId)) continue;
-    const pacienteNome = byUserId.get(userId) ?? `Paciente #${userId}`;
-    list
-      .filter((a) => a.clinicaId === clinicId)
-      .forEach((a) => result.push({ ...a, pacienteNome }));
-  }
+    if (!stored) return [];
+    const list = JSON.parse(stored) as ClinicPayment[];
+    if (!Array.isArray(list)) return [];
+    const patients = loadClinicPatients(clinicId);
+    const emailById = new Map(patients.map((p) => [p.userId, p.email]));
 
-  result.sort((a, b) => dayjs(b.dataAgendada).valueOf() - dayjs(a.dataAgendada).valueOf());
-  return result;
+    return list
+      .map((p) => ({
+        ...p,
+        patientEmail: emailById.get(p.patientId),
+      }))
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+  } catch {
+    return [];
+  }
 }
 
-/** Dia do calendário: em vermelho quando está na lista ou é final de semana (se opção ativa) */
-function ClinicUnavailableDay(
-  props: PickersDayProps & { unavailableDays?: string[]; includeWeekends?: boolean }
-) {
-  const { unavailableDays = [], includeWeekends = false, day, ...other } = props;
-  const key = day.format("YYYY-MM-DD");
-  const isWeekend = day.day() === 0 || day.day() === 6; // 0 domingo, 6 sábado
-  const isUnavailable = unavailableDays.includes(key) || (includeWeekends && isWeekend);
-  return (
-    <PickersDay
-      {...other}
-      day={day}
-      sx={
-        isUnavailable
-          ? {
-              bgcolor: "error.main",
-              color: "error.contrastText",
-              "&:hover": { bgcolor: "error.dark" },
-              "&.Mui-selected": { bgcolor: "error.dark" },
-            }
-          : undefined
-      }
-    />
-  );
+export function loadClinicUnavailableDays(_clinicId: number): string[] {
+  return [];
+}
+
+export function loadClinicIncludeWeekends(_clinicId: number): boolean {
+  return false;
 }
 
 export default function Appointments() {
   const user = useAppSelector((state) => state.auth.user);
   const clinicId = user?.id ?? 0;
-  const [agendamentos, setAgendamentos] = useState<AgendamentoExibicao[]>([]);
-  const [unavailableDays, setUnavailableDays] = useState<string[]>([]);
-  const [includeWeekends, setIncludeWeekends] = useState(false);
+  const [pagamentos, setPagamentos] = useState<PagamentoExibicao[]>([]);
 
   const refresh = () => {
-    setAgendamentos(loadAppointmentsForClinic(clinicId));
-    setUnavailableDays(loadClinicUnavailableDays(clinicId));
-    setIncludeWeekends(loadClinicIncludeWeekends(clinicId));
+    setPagamentos(loadClinicPayments(clinicId));
   };
 
   useEffect(() => {
     refresh();
   }, [clinicId]);
-
-  const handleToggleUnavailableDay = (date: Dayjs | null) => {
-    if (!date || !clinicId) return;
-    const key = date.format("YYYY-MM-DD");
-    setUnavailableDays((prev) => {
-      const next = prev.includes(key) ? prev.filter((d) => d !== key) : [...prev, key].sort();
-      saveClinicUnavailableDays(clinicId, next);
-      return next;
-    });
-  };
-
-  const handleIncludeWeekendsChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const checked = event.target.checked;
-    setIncludeWeekends(checked);
-    if (clinicId) saveClinicIncludeWeekends(clinicId, checked);
-  };
 
   useEffect(() => {
     const onFocus = () => refresh();
@@ -219,44 +94,41 @@ export default function Appointments() {
     return () => window.removeEventListener("focus", onFocus);
   }, [clinicId]);
 
-  const handleDelete = (item: AgendamentoExibicao) => {
-    const list = loadPatientAppointments(item.userId);
-    const updated = list.filter((a) => a.id !== item.id);
-    savePatientAppointments(item.userId, updated);
-    setAgendamentos((prev) => prev.filter((a) => a.id !== item.id || a.userId !== item.userId));
-  };
-
   return (
     <Box sx={{ mt: { xs: 7, sm: 8 } }}>
-      <Box display="flex" justifyContent="space-between" alignItems="center" mb={3}>
-        <Typography variant="h4" fontWeight={700}>
-          Agendamentos
-        </Typography>
-        <Button variant="contained" startIcon={<AddIcon />} disabled>
-          Novo Agendamento
-        </Button>
-      </Box>
+      <Typography variant="h4" fontWeight={700} mb={3}>
+        Pagamentos
+      </Typography>
 
       <Paper sx={{ p: 3 }}>
         <Box display="flex" alignItems="center" gap={1} mb={2}>
-          <ScheduleIcon color="action" />
+          <PaymentIcon color="action" />
           <Typography variant="h6" fontWeight={600}>
-            Agendamentos realizados pelos pacientes
+            Pagamentos recebidos dos pacientes
           </Typography>
         </Box>
         <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Procedimentos agendados nesta clínica. É possível excluir um agendamento da lista.
+          Cada registro corresponde a um pagamento registrado pelo paciente nesta clínica, com valor
+          pago e identificação do paciente.
         </Typography>
 
-        {agendamentos.length === 0 ? (
+        {pagamentos.length === 0 ? (
           <Typography color="text.secondary">
-            Nenhum agendamento realizado pelos pacientes nesta clínica.
+            Nenhum pagamento registrado para esta clínica ainda.
           </Typography>
         ) : (
-          <List dense disablePadding>
-            {agendamentos.map((ag) => (
+          <List
+            dense
+            disablePadding
+            sx={{
+              maxHeight: { xs: "55vh", sm: "min(65vh, 480px)" },
+              overflowY: "auto",
+              pr: 0.5,
+            }}
+          >
+            {pagamentos.map((pg) => (
               <ListItem
-                key={`${ag.userId}-${ag.id}`}
+                key={`${clinicId}-${pg.id}-${pg.date}`}
                 divider
                 sx={{
                   py: 1.5,
@@ -267,67 +139,35 @@ export default function Appointments() {
                 <ListItemText
                   primary={
                     <Typography variant="subtitle1" fontWeight={600}>
-                      {ag.pacienteNome}
+                      {pg.patientName}
+                      {pg.patientEmail ? (
+                        <Typography component="span" variant="body2" color="text.secondary" sx={{ ml: 1 }}>
+                          · {pg.patientEmail}
+                        </Typography>
+                      ) : null}
                     </Typography>
                   }
                   secondary={
-                    <>
-                      <Typography component="span" variant="body2" color="text.secondary">
-                        {ag.procedimentoNome || "Procedimento"} ·{" "}
-                        {dayjs(ag.dataAgendada).format("DD/MM/YYYY [às] HH:mm")}
+                    <Typography component="span" variant="body2" color="text.secondary">
+                      {pg.procedureName || "Procedimento"} · Valor pago:{" "}
+                      <Typography component="span" fontWeight={600} color="text.primary">
+                        R$ {pg.amount}
                       </Typography>
-                    </>
+                      {pg.method === "cartao" && pg.installments != null && pg.installments > 0
+                        ? ` · ${pg.installments} parcela(s)`
+                        : ""}
+                      {` · ${pg.method === "pix" ? "PIX" : "Cartão"}`}
+                      {" · "}
+                      {dayjs(pg.date).isValid()
+                        ? dayjs(pg.date).format("DD/MM/YYYY [às] HH:mm")
+                        : pg.date}
+                    </Typography>
                   }
                 />
-                <ListItemSecondaryAction>
-                  <IconButton
-                    edge="end"
-                    aria-label="Excluir agendamento"
-                    onClick={() => handleDelete(ag)}
-                    color="error"
-                    size="small"
-                  >
-                    <DeleteOutlineIcon />
-                  </IconButton>
-                </ListItemSecondaryAction>
               </ListItem>
             ))}
           </List>
         )}
-      </Paper>
-
-      {/* Calendário: dias sem atendimento (clique para marcar/desmarcar em vermelho) */}
-      <Paper sx={{ p: 3, mt: 3 }}>
-        <Box display="flex" alignItems="center" gap={1} mb={2}>
-          <EventBusyIcon color="error" />
-          <Typography variant="h6" fontWeight={600}>
-            Dias sem atendimento
-          </Typography>
-        </Box>
-        <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-          Clique em um dia para marcar ou desmarcar como indisponível. Os pacientes não poderão agendar nesses dias (aparecerão em vermelho para eles).
-        </Typography>
-        <FormControlLabel
-          control={
-            <Checkbox
-              checked={includeWeekends}
-              onChange={handleIncludeWeekendsChange}
-              color="primary"
-            />
-          }
-          label="Marcar finais de semana automaticamente (por mês)"
-          sx={{ mb: 2, display: "block" }}
-        />
-        <LocalizationProvider dateAdapter={AdapterDayjs}>
-          <Box sx={{ width: "100%", "& .MuiDateCalendar-root": { width: "100%", maxWidth: "100%" } }}>
-            <DateCalendar
-              value={null}
-              onChange={handleToggleUnavailableDay}
-              slots={{ day: ClinicUnavailableDay }}
-              slotProps={{ day: { unavailableDays, includeWeekends } as object }}
-            />
-          </Box>
-        </LocalizationProvider>
       </Paper>
     </Box>
   );

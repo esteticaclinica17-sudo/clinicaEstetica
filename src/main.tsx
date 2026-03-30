@@ -3,10 +3,9 @@ import ReactDOM from "react-dom/client";
 import { Provider } from "react-redux";
 import { persistor, store } from "./core/store";
 import { BrowserRouter } from "react-router";
-import { ThemeProvider } from "@mui/material/styles";
 import { CssBaseline, CircularProgress, Box } from "@mui/material";
-import getTheme from "./assets/styles/theme";
 import { AuthProvider } from "./app/providers/AuthProvider";
+import { ThemeModeProvider } from "./app/providers/ThemeModeProvider";
 import { AppRoutes } from "./app/routes/routes";
 import "@/assets/i18n/i18n";
 import "./index.css";
@@ -34,12 +33,12 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
     <Provider store={store}>
       <PersistGate loading={<LoadingFallback />} persistor={persistor}>
         <BrowserRouter>
-          <ThemeProvider theme={getTheme("light")}>
+          <ThemeModeProvider>
             <CssBaseline />
             <AuthProvider>
               <AppRoutes />
             </AuthProvider>
-          </ThemeProvider>
+          </ThemeModeProvider>
         </BrowserRouter>
       </PersistGate>
     </Provider>

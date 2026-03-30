@@ -144,8 +144,8 @@ export default function PatientLanding() {
               color="white"
               sx={{ opacity: 0.9, mb: 3, maxWidth: 600, fontSize: { xs: 16, md: 20 } }}
             >
-              Aqui você acompanha seus agendamentos, histórico de procedimentos e
-              muito mais. Cuide da sua saúde e beleza com a Concept Clinic.
+              Aqui você contrata procedimentos, acompanha pagamentos e seu histórico.
+              Após quitar o pagamento, a clínica recebe seu contato para dar sequência ao atendimento.
             </Typography>
             <Box sx={{ display: 'flex', gap: 2, flexWrap: 'wrap' }}>
               <Button
@@ -158,9 +158,9 @@ export default function PatientLanding() {
                   px: 4,
                   '&:hover': { bgcolor: 'secondary.dark' },
                 }}
-                onClick={() => navigate(APP_ROUTES.PATIENT.APPOINTMENTS)}
+                onClick={() => navigate(APP_ROUTES.PATIENT.PAYMENTS)}
               >
-                Agendar Consulta
+                Pagamentos e contratação
               </Button>
               <Button
                 variant="outlined"
@@ -199,15 +199,15 @@ export default function PatientLanding() {
                 transition: 'box-shadow 0.2s',
                 '&:hover': { boxShadow: 4 },
               }}
-              onClick={() => navigate(APP_ROUTES.PATIENT.APPOINTMENTS)}
+              onClick={() => navigate(APP_ROUTES.PATIENT.PAYMENTS)}
             >
               <CalendarMonthIcon sx={{ fontSize: 40, color: 'primary.main' }} />
               <Box>
                 <Typography variant="subtitle1" fontWeight={600}>
-                  Meus Agendamentos
+                  Pagamentos
                 </Typography>
                 <Typography variant="body2" color="text.secondary">
-                  Veja e gerencie suas consultas
+                  Contrate procedimentos e acompanhe o que falta pagar
                 </Typography>
               </Box>
             </Paper>
