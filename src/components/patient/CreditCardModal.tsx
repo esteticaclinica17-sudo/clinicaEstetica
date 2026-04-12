@@ -27,6 +27,34 @@ interface CreditCardModalProps {
   onSave: (values: CreditCardFormValues) => void;
 }
 
+/** 16 dígitos, ex.: 1234 5678 9012 3456 */
+const CARD_NUMBER_DIGITS_REGEX = /^\d{16}$/;
+
+/** Validade impressa no cartão: MM/AA com mês 01–12 */
+const EXPIRY_MM_AA_REGEX = /^(0[1-9]|1[0-2])\/\d{2}$/;
+
+const CARD_DIGITS_MAX = 16;
+
+function maskCardNumberInput(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(0, CARD_DIGITS_MAX);
+  return digits.replace(/(\d{4})(?=\d)/g, "$1 ").trimEnd();
+}
+
+function maskExpiryInput(raw: string): string {
+  const digits = raw.replace(/\D/g, "").slice(0, 4);
+  if (digits.length <= 2) return digits;
+  return `${digits.slice(0, 2)}/${digits.slice(2)}`;
+}
+
+function isExpiryMonthYearValid(mmAa: string): boolean {
+  if (!EXPIRY_MM_AA_REGEX.test(mmAa)) return false;
+  const [mm, aa] = mmAa.split("/");
+  const month = parseInt(mm, 10);
+  const year = 2000 + parseInt(aa, 10);
+  const lastInstantOfExpiryMonth = new Date(year, month, 0, 23, 59, 59, 999);
+  return lastInstantOfExpiryMonth.getTime() >= Date.now();
+}
+
 export function CreditCardModal({
   open,
   onClose,
@@ -47,10 +75,36 @@ export function CreditCardModal({
   }, [open]);
 
   const numeroSomenteDigitos = numeroCartao.replace(/\D/g, "");
+  const trimmedValidade = validade.trim();
+  const cardNumberOk = CARD_NUMBER_DIGITS_REGEX.test(numeroSomenteDigitos);
+  const expiryComplete = trimmedValidade.length === 5;
+  const expiryFormatOk = EXPIRY_MM_AA_REGEX.test(trimmedValidade);
+  const expiryNotPast =
+    expiryFormatOk && isExpiryMonthYearValid(trimmedValidade);
+
   const isValid =
-    nomeTitular.trim() !== "" &&
-    numeroSomenteDigitos.length >= 4 &&
-    validade.trim() !== "";
+    nomeTitular.trim() !== "" && cardNumberOk && expiryNotPast;
+
+  const cardFieldError =
+    numeroSomenteDigitos.length === CARD_DIGITS_MAX && !cardNumberOk;
+
+  const cardHelper =
+    numeroSomenteDigitos.length === 0
+      ? "Apenas os 4 últimos dígitos serão armazenados."
+      : numeroSomenteDigitos.length < CARD_DIGITS_MAX
+        ? `${numeroSomenteDigitos.length}/${CARD_DIGITS_MAX} dígitos — formato 0000 0000 0000 0000.`
+        : "Apenas os 4 últimos dígitos serão armazenados.";
+
+  const expiryFieldError =
+    expiryComplete && (!expiryFormatOk || !expiryNotPast);
+
+  const expiryHelper = !expiryComplete
+    ? "Formato MM/AA, como no cartão (ex.: 03/28 para março de 2028)."
+    : !expiryFormatOk
+      ? "Use MM/AA com mês entre 01 e 12."
+      : !expiryNotPast
+        ? "A validade deste cartão já passou."
+        : "";
 
   const handleSaveClick = () => {
     if (!isValid) return;
@@ -58,7 +112,7 @@ export function CreditCardModal({
     onSave({
       nomeTitular: nomeTitular.trim(),
       numeroCartao,
-      validade: validade.trim(),
+      validade: trimmedValidade,
       bandeira,
     });
   };
@@ -78,14 +132,33 @@ export function CreditCardModal({
             label="Número do cartão"
             fullWidth
             value={numeroCartao}
-            onChange={(event) => setNumeroCartao(event.target.value)}
-            helperText="Apenas os 4 últimos dígitos serão armazenados."
+            onChange={(event) =>
+              setNumeroCartao(maskCardNumberInput(event.target.value))
+            }
+            placeholder="0000 0000 0000 0000"
+            inputProps={{
+              inputMode: "numeric",
+              maxLength: 19,
+              "aria-invalid": cardFieldError,
+            }}
+            error={cardFieldError}
+            helperText={cardHelper}
           />
           <TextField
             label="Validade (MM/AA)"
             fullWidth
             value={validade}
-            onChange={(event) => setValidade(event.target.value)}
+            onChange={(event) =>
+              setValidade(maskExpiryInput(event.target.value))
+            }
+            placeholder="MM/AA"
+            inputProps={{
+              inputMode: "numeric",
+              maxLength: 5,
+              "aria-invalid": expiryFieldError,
+            }}
+            error={expiryFieldError}
+            helperText={expiryHelper}
           />
           <FormControl component="fieldset">
             <FormLabel component="legend">Bandeira do cartão</FormLabel>

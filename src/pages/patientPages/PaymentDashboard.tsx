@@ -156,6 +156,14 @@ function formatMoneyPtBr(value: number): string {
   return value.toFixed(2).replace(".", ",");
 }
 
+/** Impede valor digitado acima do máximo (saldo faltante) no pagamento flexível. */
+function clampMoneyInputToMaxRemaining(raw: string, maxRemaining: number): string {
+  const max = Math.max(0, maxRemaining);
+  const n = parseMoneyToNumber(raw);
+  if (n <= max) return raw;
+  return formatMoneyPtBr(max);
+}
+
 /** Valores agregados de pagamento para um procedimento contratado (lista + confirmação de ocultar). */
 function hiredProcedurePaymentSummary(proc: HiredProcedure) {
   const totalInstallments =
@@ -623,25 +631,39 @@ export default function PaymentDashboard() {
   const selectedTotalValue = selectedProcedure
     ? parseMoneyToNumber(selectedProcedure.valor)
     : 0;
+  /** Valor nominal de cada parcela do contrato (valor total ÷ parcelas totais). */
   const selectedPerInstallmentValue =
     selectedTotalInstallments > 0
       ? selectedTotalValue / selectedTotalInstallments
       : selectedTotalValue;
-  const fallbackAmountByInstallment = Math.max(
-    0,
-    Math.min(1, selectedRemainingInstallments) * selectedPerInstallmentValue
-  );
   const selectedAmountPaidValue = Math.max(
     0,
     selectedProcedure?.amountPaid ??
       Math.min(selectedTotalValue, selectedAlreadyPaidInstallments * selectedPerInstallmentValue)
   );
   const selectedAmountRemaining = Math.max(0, selectedTotalValue - selectedAmountPaidValue);
+  /** Valor de cada “faixa” sobre o saldo faltante, alinhado às parcelas ainda em aberto. */
+  const remainingPerInstallmentSlot =
+    selectedRemainingInstallments > 0
+      ? Math.round((selectedAmountRemaining / selectedRemainingInstallments) * 100) / 100
+      : selectedAmountRemaining;
+  const fallbackAmountByInstallment = Math.max(
+    0,
+    Math.min(
+      selectedAmountRemaining,
+      selectedRemainingInstallments > 0
+        ? remainingPerInstallmentSlot
+        : selectedAmountRemaining
+    )
+  );
   const requestedAmount = parseMoneyToNumber(amountToPayInput);
   const sanitizedRequestedAmount = Math.max(0, Math.min(selectedAmountRemaining, requestedAmount));
   const parceladoAmount = Math.max(
     0,
-    Math.min(selectedAmountRemaining, installments * selectedPerInstallmentValue)
+    Math.min(
+      selectedAmountRemaining,
+      Math.round(installments * remainingPerInstallmentSlot * 100) / 100
+    )
   );
   const flexivelAmount =
     sanitizedRequestedAmount > 0
@@ -649,6 +671,12 @@ export default function PaymentDashboard() {
       : Math.min(selectedAmountRemaining, fallbackAmountByInstallment);
   const amountToPayNow = modoPagamento === "parcelado" ? parceladoAmount : flexivelAmount;
   const pixAmountPreview = amountToPayNow;
+
+  useEffect(() => {
+    const maxOpt = installmentOptions.length;
+    if (maxOpt === 0) return;
+    setInstallments((prev) => (prev > maxOpt ? maxOpt : prev));
+  }, [selectedProcedure?.id, installmentOptions.length, modalPagamentoAberto]);
 
   const handlePay = (skipPixQr = false) => {
     if (!selectedProcedure || !userId || !user) return;
@@ -717,13 +745,19 @@ export default function PaymentDashboard() {
       return;
     }
 
-    // Quantas parcelas o usuário está tentando pagar agora (modo flexível usa só o valor, não força contagem)
+    const saldoFaltante = Math.max(0, valorTotalProc - valorJaPagoAntes);
+    if (modoPagamento === "flexivel" && amountToPayNow > saldoFaltante + 0.01) {
+      setSnackbar({
+        open: true,
+        message: `No pagamento flexível o valor não pode ultrapassar o saldo faltante (máx. R$ ${formatMoneyPtBr(saldoFaltante)}).`,
+        severity: "error",
+      });
+      return;
+    }
+
+    // Quantas parcelas o usuário está tentando pagar agora (flexível: só o valor informado; parcelas só no modo parcelado)
     const requestedInstallments =
-      modoPagamento === "parcelado"
-        ? installments
-        : formaPagamento === "cartao"
-        ? installments
-        : 1;
+      modoPagamento === "parcelado" ? installments : 1;
     const installmentsToPay = Math.min(remainingBefore, requestedInstallments);
 
     // Atualiza o procedimento contratado respeitando o limite de parcelas restantes
@@ -1213,7 +1247,11 @@ export default function PaymentDashboard() {
             <RadioGroup
               row
               value={modoPagamento}
-              onChange={(_, v) => setModoPagamento(v as ModoPagamento)}
+              onChange={(_, v) => {
+                const next = v as ModoPagamento;
+                setModoPagamento(next);
+                if (next === "flexivel") setInstallments(1);
+              }}
             >
               <FormControlLabel value="parcelado" control={<Radio />} label="Parcelado" />
               <FormControlLabel value="flexivel" control={<Radio />} label="Flexível" />
@@ -1232,11 +1270,17 @@ export default function PaymentDashboard() {
                       label="Parcelas"
                       onChange={(e) => setInstallments(Number(e.target.value))}
                     >
-                      {installmentOptions.map((num) => (
-                        <MenuItem key={num} value={num}>
-                          {num}x
-                        </MenuItem>
-                      ))}
+                      {installmentOptions.map((num) => {
+                        const totalNestePagamento = Math.min(
+                          selectedAmountRemaining,
+                          Math.round(num * remainingPerInstallmentSlot * 100) / 100
+                        );
+                        return (
+                          <MenuItem key={num} value={num}>
+                            {num}x · R$ {formatMoneyPtBr(totalNestePagamento)} neste pagamento
+                          </MenuItem>
+                        );
+                      })}
                     </Select>
                   </FormControl>
                   <TextField
@@ -1253,8 +1297,12 @@ export default function PaymentDashboard() {
                   label="Valor a pagar via PIX"
                   fullWidth
                   value={amountToPayInput}
-                  onChange={(e) => setAmountToPayInput(e.target.value)}
-                  helperText={`Faltante: R$ ${formatMoneyPtBr(selectedAmountRemaining)}`}
+                  onChange={(e) =>
+                    setAmountToPayInput(
+                      clampMoneyInputToMaxRemaining(e.target.value, selectedAmountRemaining)
+                    )
+                  }
+                  helperText={`Saldo faltante (máximo neste pagamento): R$ ${formatMoneyPtBr(selectedAmountRemaining)}`}
                 />
               )}
             </Box>
@@ -1268,8 +1316,12 @@ export default function PaymentDashboard() {
                   label="Valor a pagar no cartão"
                   fullWidth
                   value={amountToPayInput}
-                  onChange={(e) => setAmountToPayInput(e.target.value)}
-                  helperText={`Faltante: R$ ${formatMoneyPtBr(selectedAmountRemaining)}`}
+                  onChange={(e) =>
+                    setAmountToPayInput(
+                      clampMoneyInputToMaxRemaining(e.target.value, selectedAmountRemaining)
+                    )
+                  }
+                  helperText={`Saldo faltante (máximo neste pagamento): R$ ${formatMoneyPtBr(selectedAmountRemaining)}`}
                 />
               )}
               <FormControl component="fieldset" sx={{ mt: 2, width: "100%" }}>
@@ -1304,7 +1356,7 @@ export default function PaymentDashboard() {
                 )}
               </FormControl>
 
-              {selectedProcedure && (
+              {selectedProcedure && modoPagamento === "parcelado" && (
                 <FormControl fullWidth sx={{ mt: 2 }}>
                   <InputLabel id="installments-label">Parcelas</InputLabel>
                   <Select
@@ -1313,11 +1365,17 @@ export default function PaymentDashboard() {
                     label="Parcelas"
                     onChange={(e) => setInstallments(Number(e.target.value))}
                   >
-                    {installmentOptions.map((num) => (
-                      <MenuItem key={num} value={num}>
-                        {num}x {num > 1 ? `(R$ ${(parseFloat(selectedProcedure.valor.replace(',', '.')) / num).toFixed(2)})` : ""}
-                      </MenuItem>
-                    ))}
+                    {installmentOptions.map((num) => {
+                      const totalNestePagamento = Math.min(
+                        selectedAmountRemaining,
+                        Math.round(num * remainingPerInstallmentSlot * 100) / 100
+                      );
+                      return (
+                        <MenuItem key={num} value={num}>
+                          {num}x · R$ {formatMoneyPtBr(totalNestePagamento)} neste pagamento
+                        </MenuItem>
+                      );
+                    })}
                   </Select>
                 </FormControl>
               )}
