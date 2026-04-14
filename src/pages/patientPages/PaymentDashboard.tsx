@@ -785,13 +785,15 @@ export default function PaymentDashboard() {
       const hAmountPaidAfter = Math.min(hTotalValue, hAmountPaidBefore + amountToPayNow);
       const paidByAmount = hTotalValue > 0 && hAmountPaidAfter >= hTotalValue;
       const fullyPaid = nextPaid >= hTotalInstallments;
+      const nextInstallmentsPaid =
+        modoPagamento === "parcelado"
+          ? Math.min(hTotalInstallments, nextPaid)
+          : hClampedAlreadyPaid;
       return {
         ...h,
         installmentsTotal: hTotalInstallments,
-        installmentsPaid: Math.min(
-          hTotalInstallments,
-          Math.floor(hAmountPaidAfter / (hPerInstallmentValue || 1))
-        ),
+        // Pagamento flexível não consome "quantidade de parcelas".
+        installmentsPaid: nextInstallmentsPaid,
         amountPaid: hAmountPaidAfter,
         status: fullyPaid || paidByAmount ? ("paid" as const) : ("pending" as const),
       };
@@ -1277,7 +1279,7 @@ export default function PaymentDashboard() {
                         );
                         return (
                           <MenuItem key={num} value={num}>
-                            {num}x · R$ {formatMoneyPtBr(totalNestePagamento)} neste pagamento
+                            {num}x · R$ {formatMoneyPtBr(totalNestePagamento)}
                           </MenuItem>
                         );
                       })}

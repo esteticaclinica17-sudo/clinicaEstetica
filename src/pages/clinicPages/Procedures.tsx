@@ -31,7 +31,10 @@ const INVASIVIDADE_OPCOES = [
   { value: 'invasivo', label: 'Invasivo' },
 ];
 
-const PARCELAS_OPCOES = [1, 2, 3, 4, 5, 6].map((n) => ({ value: String(n), label: `${n}x` }));
+const PARCELAS_OPCOES = Array.from({ length: 12 }, (_, i) => i + 1).map((n) => ({
+  value: String(n),
+  label: `${n}x`,
+}));
 
 export interface ProcedimentoSalvo {
   id: number;
