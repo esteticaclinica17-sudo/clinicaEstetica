@@ -156,6 +156,17 @@ function formatMoneyPtBr(value: number): string {
   return value.toFixed(2).replace(".", ",");
 }
 
+/** Valor de cada parcela no pagamento parcelado (total deste pagamento ÷ quantidade escolhida). */
+function formatValorPorParcelaNoPagamento(
+  totalEstePagamento: number,
+  quantidadeParcelas: number
+): string {
+  if (quantidadeParcelas <= 0) return formatMoneyPtBr(0);
+  return formatMoneyPtBr(
+    Math.round((totalEstePagamento / quantidadeParcelas) * 100) / 100
+  );
+}
+
 /** Impede valor digitado acima do máximo (saldo faltante) no pagamento flexível. */
 function clampMoneyInputToMaxRemaining(raw: string, maxRemaining: number): string {
   const max = Math.max(0, maxRemaining);
@@ -1279,7 +1290,7 @@ export default function PaymentDashboard() {
                         );
                         return (
                           <MenuItem key={num} value={num}>
-                            {num}x · R$ {formatMoneyPtBr(totalNestePagamento)}
+                            {`${num}x de R$ ${formatValorPorParcelaNoPagamento(totalNestePagamento, num)}`}
                           </MenuItem>
                         );
                       })}
@@ -1374,7 +1385,7 @@ export default function PaymentDashboard() {
                       );
                       return (
                         <MenuItem key={num} value={num}>
-                          {num}x · R$ {formatMoneyPtBr(totalNestePagamento)} neste pagamento
+                          {`${num}x de R$ ${formatValorPorParcelaNoPagamento(totalNestePagamento, num)}`}
                         </MenuItem>
                       );
                     })}
