@@ -661,10 +661,9 @@ export default function PaymentDashboard() {
   const sanitizedRequestedAmount = Math.max(0, Math.min(selectedAmountRemaining, requestedAmount));
   const parceladoAmount = Math.max(
     0,
-    Math.min(
-      selectedAmountRemaining,
-      Math.round(installments * remainingPerInstallmentSlot * 100) / 100
-    )
+    installments > 0
+      ? Math.round((selectedAmountRemaining / installments) * 100) / 100
+      : selectedAmountRemaining
   );
   const flexivelAmount =
     sanitizedRequestedAmount > 0
@@ -1233,7 +1232,14 @@ export default function PaymentDashboard() {
             <FormLabel component="legend">Forma de pagamento</FormLabel>
             <RadioGroup
               value={formaPagamento}
-              onChange={(_, v) => setFormaPagamento(v as FormaPagamento)}
+              onChange={(_, v) => {
+                const next = v as FormaPagamento;
+                setFormaPagamento(next);
+                if (next === "pix") {
+                  setModoPagamento("flexivel");
+                  setInstallments(1);
+                }
+              }}
             >
               <FormControlLabel
                 value="pix"
@@ -1256,7 +1262,9 @@ export default function PaymentDashboard() {
                 if (next === "flexivel") setInstallments(1);
               }}
             >
-              <FormControlLabel value="parcelado" control={<Radio />} label="Parcelado" />
+              {formaPagamento === "cartao" && (
+                <FormControlLabel value="parcelado" control={<Radio />} label="Parcelado" />
+              )}
               <FormControlLabel value="flexivel" control={<Radio />} label="Flexível" />
             </RadioGroup>
           </FormControl>
