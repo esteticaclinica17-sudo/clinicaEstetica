@@ -157,16 +157,6 @@ function formatMoneyPtBr(value: number): string {
 }
 
 /** Valor de cada parcela no pagamento parcelado (total deste pagamento ÷ quantidade escolhida). */
-function formatValorPorParcelaNoPagamento(
-  totalEstePagamento: number,
-  quantidadeParcelas: number
-): string {
-  if (quantidadeParcelas <= 0) return formatMoneyPtBr(0);
-  return formatMoneyPtBr(
-    Math.round((totalEstePagamento / quantidadeParcelas) * 100) / 100
-  );
-}
-
 /** Impede valor digitado acima do máximo (saldo faltante) no pagamento flexível. */
 function clampMoneyInputToMaxRemaining(raw: string, maxRemaining: number): string {
   const max = Math.max(0, maxRemaining);
@@ -1284,13 +1274,13 @@ export default function PaymentDashboard() {
                       onChange={(e) => setInstallments(Number(e.target.value))}
                     >
                       {installmentOptions.map((num) => {
-                        const totalNestePagamento = Math.min(
-                          selectedAmountRemaining,
-                          Math.round(num * remainingPerInstallmentSlot * 100) / 100
-                        );
+                        const valorPorParcela =
+                          num > 0
+                            ? Math.round((selectedAmountRemaining / num) * 100) / 100
+                            : selectedAmountRemaining;
                         return (
                           <MenuItem key={num} value={num}>
-                            {`${num}x de R$ ${formatValorPorParcelaNoPagamento(totalNestePagamento, num)}`}
+                            {`${num}x de R$ ${formatMoneyPtBr(valorPorParcela)}`}
                           </MenuItem>
                         );
                       })}
@@ -1379,13 +1369,13 @@ export default function PaymentDashboard() {
                     onChange={(e) => setInstallments(Number(e.target.value))}
                   >
                     {installmentOptions.map((num) => {
-                      const totalNestePagamento = Math.min(
-                        selectedAmountRemaining,
-                        Math.round(num * remainingPerInstallmentSlot * 100) / 100
-                      );
+                      const valorPorParcela =
+                        num > 0
+                          ? Math.round((selectedAmountRemaining / num) * 100) / 100
+                          : selectedAmountRemaining;
                       return (
                         <MenuItem key={num} value={num}>
-                          {`${num}x de R$ ${formatValorPorParcelaNoPagamento(totalNestePagamento, num)}`}
+                          {`${num}x de R$ ${formatMoneyPtBr(valorPorParcela)}`}
                         </MenuItem>
                       );
                     })}
