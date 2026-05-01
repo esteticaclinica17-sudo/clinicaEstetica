@@ -12,6 +12,8 @@ export interface RegisterPayload {
   first_name: string;
   last_name: string;
   email: string;
+  /** Telefone no formato (00) 00000-0000 ou (00) 0000-0000 */
+  phone: string;
   password: string;
   password2: string;
 }
@@ -72,6 +74,7 @@ export interface RegisterResponse {
   last_name: string;
   email: string;
   role: string;
+  phone?: string;
   access: string;
   refresh: string;
 }

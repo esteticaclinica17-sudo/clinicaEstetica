@@ -26,6 +26,7 @@ interface PacienteAssociado {
   userId: number;
   nome: string;
   email: string;
+  telefone?: string;
   dataAssociacao: string;
 }
 

@@ -3,7 +3,8 @@ import { Box, Typography, TextField, Button, Alert } from '@mui/material'
 import AuthCard from '../../components/ui/cards/AuthCard'
 import { useAuth } from '../../hooks/useAuth'
 import { useNavigate } from 'react-router'
-import { APP_ROUTES } from '../../util/constants'
+import { APP_ROUTES, VALIDATION_PATTERNS } from '../../util/constants'
+import { maskTelefone } from '../../util/masks'
 
 export default function Register() {
   const { register, loading, error, user } = useAuth()
@@ -11,6 +12,7 @@ export default function Register() {
   const [firstName, setFirstName] = useState('')
   const [lastName, setLastName] = useState('')
   const [email, setEmail] = useState('')
+  const [phone, setPhone] = useState('')
   const [password, setPassword] = useState('')
   const [password2, setPassword2] = useState('')
   const [formError, setFormError] = useState<string | null>(null)
@@ -41,9 +43,25 @@ export default function Register() {
       setFormError('As senhas não coincidem')
       return
     }
+    const phoneTrim = phone.trim()
+    if (!phoneTrim) {
+      setFormError('Informe o telefone')
+      return
+    }
+    if (!VALIDATION_PATTERNS.TELEFONE.test(phoneTrim)) {
+      setFormError('Telefone inválido. Use o formato (00) 00000-0000 ou (00) 0000-0000')
+      return
+    }
     registerAttempted.current = true
     try {
-      await register({ first_name: firstName, last_name: lastName, email, password, password2 })
+      await register({
+        first_name: firstName,
+        last_name: lastName,
+        email,
+        phone: phoneTrim,
+        password,
+        password2,
+      })
       // A navegação acontece via useEffect quando o user é atualizado
     } catch (err: unknown) {
       registerAttempted.current = false
@@ -97,6 +115,17 @@ export default function Register() {
               fullWidth
               required
               margin="normal"
+            />
+            <TextField
+              label="Telefone"
+              value={phone}
+              onChange={(e) => setPhone(maskTelefone(e.target.value))}
+              fullWidth
+              required
+              margin="normal"
+              placeholder="(00) 00000-0000"
+              inputProps={{ maxLength: 16 }}
+              helperText="Obrigatorio"
             />
             <TextField
               label="Senha"

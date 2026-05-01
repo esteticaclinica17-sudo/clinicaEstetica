@@ -247,7 +247,7 @@ export const mockAuth = {
       last_name: payload.last_name,
       email: payload.email,
       password: payload.password,
-      phone: '',
+      phone: String(payload.phone ?? '').trim(),
       cpf: '',
       role: 'patient' // Novos usuários são pacientes por padrão
     };

@@ -14,6 +14,7 @@ interface PacienteAssociado {
   userId: number;
   nome: string;
   email: string;
+  telefone?: string;
   dataAssociacao: string;
 }
 
@@ -34,7 +35,7 @@ function mapToGridRows(list: PacienteAssociado[]) {
     id: p.userId,
     nome: p.nome?.trim() || p.email || `Paciente ${p.userId}`,
     email: p.email || '–',
-    telefone: '–',
+    telefone: p.telefone?.trim() || '–',
     dataCadastro: p.dataAssociacao,
   }));
 }
@@ -80,11 +81,13 @@ export default function Patients() {
         </Button>
       </Box>
 
-      <Paper sx={{ p: 3, mb: 3 }}>
-        <Typography color="text.secondary">
-          Nenhum paciente cadastrado ainda.
-        </Typography>
-      </Paper>
+      {patientsRecent.length === 0 && (
+        <Paper sx={{ p: 3, mb: 3 }}>
+          <Typography color="text.secondary">
+            Nenhum paciente cadastrado ainda.
+          </Typography>
+        </Paper>
+      )}
 
       {/* Pacientes recentes */}
       <Paper sx={{ p: 3 }}>

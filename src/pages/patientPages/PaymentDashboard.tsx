@@ -88,12 +88,15 @@ interface ClinicaItem {
   nomeEmpresa: string;
   cidade: string;
   estado: string;
+  /** Telefone cadastrado no cadastro da clínica (mock_clinics). */
+  telefone?: string;
 }
 
 interface PacienteAssociadoClinica {
   userId: number;
   nome: string;
   email: string;
+  telefone?: string;
   dataAssociacao: string;
 }
 
@@ -279,6 +282,7 @@ function loadClinicasFromStorage(): ClinicaItem[] {
       nomeEmpresa?: string;
       cidade?: string;
       estado?: string;
+      telefone?: string;
     }>;
     return (parsed || []).map((c, i) => ({
       id: c.id ?? i + 1,
@@ -286,9 +290,22 @@ function loadClinicasFromStorage(): ClinicaItem[] {
       nomeEmpresa: c.nomeEmpresa || "",
       cidade: (c.cidade || "").toLowerCase(),
       estado: (c.estado || "").toLowerCase(),
+      telefone: String(c.telefone ?? "").trim() || undefined,
     }));
   } catch {
     return [];
+  }
+}
+
+function getClinicTelefoneById(clinicaId: number): string {
+  try {
+    const stored = localStorage.getItem(MOCK_CLINICS_KEY);
+    if (!stored) return "";
+    const parsed = JSON.parse(stored) as Array<{ id?: number; telefone?: string }>;
+    const c = parsed.find((x) => Number(x.id) === Number(clinicaId));
+    return String(c?.telefone ?? "").trim();
+  } catch {
+    return "";
   }
 }
 
@@ -319,8 +336,19 @@ function loadClinicPatients(clinicId: number): PacienteAssociadoClinica[] {
 
 function addPatientToClinic(clinicId: number, patient: PacienteAssociadoClinica) {
   const list = loadClinicPatients(clinicId);
-  if (list.some((p) => p.userId === patient.userId)) return;
-  list.push(patient);
+  const idx = list.findIndex((p) => p.userId === patient.userId);
+  if (idx >= 0) {
+    const prev = list[idx];
+    list[idx] = {
+      ...prev,
+      nome: patient.nome?.trim() || prev.nome,
+      email: patient.email?.trim() || prev.email,
+      telefone:
+        (patient.telefone?.trim() || prev.telefone?.trim() || "").trim() || undefined,
+    };
+  } else {
+    list.push(patient);
+  }
   try {
     localStorage.setItem(CLINIC_PATIENTS_STORAGE_PREFIX + clinicId, JSON.stringify(list));
   } catch {
@@ -364,6 +392,11 @@ export default function PaymentDashboard() {
     message: "",
     severity: "success",
   });
+  const [paymentCompletedModal, setPaymentCompletedModal] = useState<{
+    open: boolean;
+    clinicaNome: string;
+    telefone: string;
+  }>({ open: false, clinicaNome: "", telefone: "" });
 
   const [procedimentos, setProcedimentos] = useState<ProcedimentoItem[]>([]);
   const [clinicas, setClinicas] = useState<ClinicaItem[]>([]);
@@ -432,6 +465,7 @@ export default function PaymentDashboard() {
       userId: user.id,
       nome: nomeCompleto,
       email: user.email ?? "",
+      telefone: user.phone?.trim() || undefined,
       dataAssociacao: new Date().toISOString(),
     });
 
@@ -495,6 +529,7 @@ export default function PaymentDashboard() {
       userId: user.id,
       nome: nomeCompleto,
       email: user.email ?? "",
+      telefone: user.phone?.trim() || undefined,
       dataAssociacao: new Date().toISOString(),
     });
 
@@ -816,6 +851,7 @@ export default function PaymentDashboard() {
         userId,
         nome: nomeCompletoLead,
         email: user.email ?? "",
+        telefone: user.phone?.trim() || undefined,
         dataAssociacao: new Date().toISOString(),
       });
       addClinicPaidLead(selAfter.clinicaId, {
@@ -896,13 +932,30 @@ export default function PaymentDashboard() {
       date: new Date().toISOString(),
     });
 
-    setSnackbar({
-      open: true,
-      message: "Pagamento realizado com sucesso!",
-      severity: "success",
-    });
+    const totalValueAfterPay = parseMoneyToNumber(selectedAfterUpdate.valor);
+    const paidAfter = selectedAfterUpdate.amountPaid ?? 0;
+    const pagamentoIntegral =
+      selectedAfterUpdate.status === "paid" || paidAfter >= totalValueAfterPay - 0.01;
+
     setPixQrModalAberto(false);
     setModalPagamentoAberto(false);
+
+    if (pagamentoIntegral) {
+      const tel = getClinicTelefoneById(selectedAfterUpdate.clinicaId);
+      setPaymentCompletedModal({
+        open: true,
+        clinicaNome: selectedAfterUpdate.clinicaNome,
+        telefone:
+          tel ||
+          "Telefone não cadastrado no sistema. Entre em contato com a clínica por outros canais.",
+      });
+    } else {
+      setSnackbar({
+        open: true,
+        message: "Pagamento realizado com sucesso!",
+        severity: "success",
+      });
+    }
   };
 
   return (
@@ -1097,39 +1150,59 @@ export default function PaymentDashboard() {
                 .map((proc) => {
                   const { totalValue, amountPaid, remainingAmount, isPaid, progress } =
                     hiredProcedurePaymentSummary(proc);
+                  const procedureActions = (
+                    <Stack
+                      direction="row"
+                      alignItems="center"
+                      spacing={0.5}
+                      justifyContent="flex-end"
+                      sx={{
+                        flexShrink: 0,
+                        width: { xs: "100%", sm: "auto" },
+                        mt: { xs: 2, sm: 0 },
+                        ml: { xs: 0, sm: 1 },
+                        alignSelf: { xs: "stretch", sm: "flex-start" },
+                      }}
+                    >
+                      <IconButton
+                        size="small"
+                        color="error"
+                        onClick={() => requestHideProcedureFromPatient(proc)}
+                        aria-label={
+                          isPaid
+                            ? "Ocultar da lista"
+                            : "Excluir procedimento com pagamento em andamento"
+                        }
+                        title={
+                          isPaid
+                            ? "Excluir da lista (oculta para você)"
+                            : "Remover da lista (há pagamento em andamento)"
+                        }
+                      >
+                        <DeleteOutlineIcon />
+                      </IconButton>
+                      <Button
+                        variant="contained"
+                        onClick={() => openPaymentModal(proc)}
+                        disabled={isPaid}
+                      >
+                        {isPaid ? "Pago" : "Pagar"}
+                      </Button>
+                    </Stack>
+                  );
+
                   return (
                     <ListItem
                       key={proc.id}
-                      secondaryAction={
-                        <Stack direction="row" alignItems="center" spacing={0.5}>
-                          <IconButton
-                            size="small"
-                            color="error"
-                            onClick={() => requestHideProcedureFromPatient(proc)}
-                            aria-label={
-                              isPaid
-                                ? "Ocultar da lista"
-                                : "Excluir procedimento com pagamento em andamento"
-                            }
-                            title={
-                              isPaid
-                                ? "Excluir da lista (oculta para você)"
-                                : "Remover da lista (há pagamento em andamento)"
-                            }
-                          >
-                            <DeleteOutlineIcon />
-                          </IconButton>
-                          <Button
-                            variant="contained"
-                            onClick={() => openPaymentModal(proc)}
-                            disabled={isPaid}
-                          >
-                            {isPaid ? "Pago" : "Pagar"}
-                          </Button>
-                        </Stack>
-                      }
+                      alignItems="flex-start"
+                      sx={{
+                        flexDirection: { xs: "column", sm: "row" },
+                        pr: { xs: 2, sm: 2 },
+                        py: { xs: 2, sm: 1.5 },
+                      }}
                     >
                       <ListItemText
+                        sx={{ flex: "1 1 auto", minWidth: 0, pr: { sm: 1 } }}
                         primary={proc.procedimentoNome}
                         secondary={
                           <>
@@ -1144,7 +1217,7 @@ export default function PaymentDashboard() {
                                   height: 8,
                                   borderRadius: 999,
                                   bgcolor: "action.hover",
-                                  maxWidth: "70%",
+                                  maxWidth: { xs: "100%", sm: "70%" },
                                 }}
                               />
                               <Typography
@@ -1160,6 +1233,7 @@ export default function PaymentDashboard() {
                           </>
                         }
                       />
+                      {procedureActions}
                     </ListItem>
                   );
                 })}
@@ -1485,6 +1559,50 @@ export default function PaymentDashboard() {
             }}
           >
             Cadastrar cartão
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={paymentCompletedModal.open}
+        onClose={() => setPaymentCompletedModal((p) => ({ ...p, open: false }))}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Pagamento concluído</DialogTitle>
+        <DialogContent>
+          <Typography variant="body1" sx={{ mb: 2 }}>
+            O pagamento do procedimento foi concluído. Seus dados foram enviados para a clínica{" "}
+            <strong>{paymentCompletedModal.clinicaNome}</strong>.
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+            Para agendar ou tirar dúvidas, entre em contato pelo telefone da clínica:
+          </Typography>
+          {(() => {
+            const digits = paymentCompletedModal.telefone.replace(/\D/g, "");
+            const canDial = digits.length >= 10;
+            return canDial ? (
+              <Typography
+                variant="h6"
+                component="a"
+                href={`tel:${digits}`}
+                sx={{
+                  color: "primary.main",
+                  textDecoration: "underline",
+                  cursor: "pointer",
+                  wordBreak: "break-word",
+                }}
+              >
+                {paymentCompletedModal.telefone}
+              </Typography>
+            ) : (
+              <Typography variant="body1">{paymentCompletedModal.telefone}</Typography>
+            );
+          })()}
+        </DialogContent>
+        <DialogActions>
+          <Button variant="contained" onClick={() => setPaymentCompletedModal((p) => ({ ...p, open: false }))}>
+            Entendi
           </Button>
         </DialogActions>
       </Dialog>

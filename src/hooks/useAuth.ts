@@ -61,12 +61,33 @@ export function useAuth() {
     }
   }
 
-  const register = async ({ first_name, last_name, email, password, password2 }: { first_name: string; last_name: string; email: string; password: string; password2: string }) => {
+  const register = async ({
+    first_name,
+    last_name,
+    email,
+    phone,
+    password,
+    password2,
+  }: {
+    first_name: string
+    last_name: string
+    email: string
+    phone: string
+    password: string
+    password2: string
+  }) => {
     setLoading(true)
     setError(null)
     try {
-      const response = await authService.register({ first_name, last_name, email, password, password2 })
-      
+      const response = await authService.register({
+        first_name,
+        last_name,
+        email,
+        phone,
+        password,
+        password2,
+      })
+
       // Após registrar com sucesso, faz login automático
       if (response && response.data) {
         const userData = {
@@ -74,7 +95,8 @@ export function useAuth() {
           first_name: response.data.first_name,
           last_name: response.data.last_name,
           email: response.data.email,
-          role: response.data.role
+          role: response.data.role,
+          phone: response.data.phone ?? phone,
         }
         setCredentials({
           accessToken: response.data.access,
