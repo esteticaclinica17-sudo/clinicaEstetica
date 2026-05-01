@@ -659,12 +659,16 @@ export default function PaymentDashboard() {
   );
   const requestedAmount = parseMoneyToNumber(amountToPayInput);
   const sanitizedRequestedAmount = Math.max(0, Math.min(selectedAmountRemaining, requestedAmount));
-  const parceladoAmount = Math.max(
-    0,
-    installments > 0
-      ? Math.round((selectedAmountRemaining / installments) * 100) / 100
-      : selectedAmountRemaining
-  );
+  /** Cartão parcelado: cobrança integral ao cartão; o banco divide em Nx. Contabiliza o saldo restante todo. */
+  const parceladoAmount =
+    formaPagamento === "cartao"
+      ? selectedAmountRemaining
+      : Math.max(
+          0,
+          installments > 0
+            ? Math.round((selectedAmountRemaining / installments) * 100) / 100
+            : selectedAmountRemaining
+        );
   const flexivelAmount =
     sanitizedRequestedAmount > 0
       ? sanitizedRequestedAmount
@@ -775,7 +779,9 @@ export default function PaymentDashboard() {
       const hToPay =
         modoPagamento === "flexivel"
           ? 0
-          : Math.min(hRemaining, installmentsToPay);
+          : formaPagamento === "cartao" && modoPagamento === "parcelado"
+            ? hRemaining
+            : Math.min(hRemaining, installmentsToPay);
       const nextPaid = hClampedAlreadyPaid + hToPay;
       const hTotalValue = parseMoneyToNumber(h.valor);
       const hPerInstallmentValue =
@@ -1397,7 +1403,7 @@ export default function PaymentDashboard() {
                   fullWidth
                   value={`R$ ${formatMoneyPtBr(parceladoAmount)}`}
                   slotProps={{ input: { readOnly: true } }}
-                  helperText={`Faltante: R$ ${formatMoneyPtBr(selectedAmountRemaining)}`}
+                  helperText={`Total cobrado ao cartão (saldo faltante). A opção ${installments}x no cartão é só a divisão no banco; o sistema registra o valor integral.`}
                 />
               )}
             </>
